@@ -19,9 +19,6 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Prepare Project & Bundle Offline Plugins
         run: |
           rm -rf node_modules android package.json package-lock.json capacitor.config.json capacitor.config.ts
@@ -41,69 +38,9 @@ jobs:
 
           mkdir -p www
 
-          # Copy files if they were placed in the root directory instead of www/
           if [ -f "index.html" ]; then cp index.html www/index.html; fi
           if [ -f "style.css" ]; then cp style.css www/style.css; fi
           if [ -f "app.js" ]; then cp app.js www/app.js; fi
-
-          # Guarantee www/index.html exists
-          if [ ! -f "www/index.html" ]; then
-            cat << 'EOF' > www/index.html
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-              <title>MKR Ledger</title>
-              <meta name="theme-color" content="#2563eb">
-              <link rel="stylesheet" href="style.css">
-          </head>
-          <body>
-              <div class="app-bar">MKR Ledger</div>
-              <div class="screen active">
-                  <div class="card form-card">
-                      <div class="form-group">
-                          <input type="text" id="item-name" placeholder="e.g., Rice (5kg), Fish..." autocomplete="off">
-                          <div class="price-row">
-                              <input type="number" id="item-price" placeholder="Price (৳)" inputmode="decimal" step="any">
-                              <button class="btn" id="add-btn" onclick="mkr.addItem()">+ &nbsp;Add</button>
-                          </div>
-                      </div>
-                  </div>
-                  <div class="card receipt-card" id="capture-area">
-                      <div class="receipt-header">
-                          <h3>Bazar List of---⬇️</h3>
-                          <input type="date" id="receipt-label">
-                      </div>
-                      <ul id="item-list" class="receipt-list"></ul>
-                      <div class="receipt-total">
-                          <span>Total Expense :</span>
-                          <span id="grand-total">0.00</span>
-                      </div>
-                      <p class="watermark">Calculated via MKR Ledger</p>
-                      <p class="watermark footer-date">Created on <span id="receipt-date"></span></p>
-                  </div>
-                  <div class="action-grid">
-                      <button class="btn bg-success" id="save-btn" onclick="mkr.downloadJPG()">📥 Save JPG</button>
-                      <button class="btn bg-primary" id="share-btn" onclick="mkr.shareList()">🔗 Share Image</button>
-                      <button class="btn btn-outline" style="grid-column: span 2;" onclick="mkr.clearList()">🗑️ Clear All</button>
-                  </div>
-              </div>
-              <div id="toast" class="toast">Saved successfully!</div>
-              <div id="image-modal" class="modal">
-                  <div class="modal-content">
-                      <span class="close-btn" onclick="mkr.closeModal()">&times;</span>
-                      <p class="modal-title">Receipt Preview</p>
-                      <img id="preview-image" src="" alt="Receipt Preview">
-                  </div>
-              </div>
-              <script src="capacitor.js"></script>
-              <script src="html2canvas.min.js"></script>
-              <script src="app.js"></script>
-          </body>
-          </html>
-          EOF
-          fi
 
           cp node_modules/html2canvas/dist/html2canvas.min.js www/html2canvas.min.js
 
@@ -131,9 +68,11 @@ jobs:
             convert www/icon-512x512.png -resize 1024x1024\! assets/icon.png || cp www/icon-512x512.png assets/icon.png
             npx capacitor-assets generate --android || true
           fi
+          echo "Android project generated successfully"
 
       - name: Build Android Debug APK
         run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
