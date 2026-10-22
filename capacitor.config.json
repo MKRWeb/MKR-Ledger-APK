@@ -1,0 +1,9 @@
+{
+  "appId": "com.mkrweb.mkrledger",
+  "appName": "MKR Ledger",
+  "webDir": "www",
+  "bundledWebRuntime": true,
+  "server": {
+    "androidScheme": "https"
+  }
+}
