@@ -137,7 +137,7 @@ class MkrLedger {
         return canvas.toDataURL('image/jpeg', 0.95);
     }
 
-    async downloadJPG() {
+        async downloadJPG() {
         if (this.items.length === 0) {
             this.showToast("⚠️ List is empty!");
             return;
@@ -154,12 +154,36 @@ class MkrLedger {
 
             if (window.Capacitor && window.Capacitor.isNativePlatform()) {
                 const { Filesystem } = window.Capacitor.Plugins;
-                await Filesystem.writeFile({
-                    path: fileName,
-                    data: base64Data,
-                    directory: 'DOCUMENTS'
-                });
-                this.showToast(`✅ Saved to Documents/${fileName}`);
+
+                // 1. Check & request storage permission for Android 10 (Vivo Y50)
+                try {
+                    const status = await Filesystem.checkPermissions();
+                    if (status.publicStorage !== 'granted') {
+                        await Filesystem.requestPermissions();
+                    }
+                } catch (permErr) {
+                    console.warn("Permission check warning:", permErr);
+                }
+
+                // 2. Write file with recursive: true
+                try {
+                    await Filesystem.writeFile({
+                        path: `MKR_Ledger/${fileName}`,
+                        data: base64Data,
+                        directory: 'DOCUMENTS',
+                        recursive: true
+                    });
+                    this.showToast(`✅ Saved to Documents/MKR_Ledger/${fileName}`);
+                } catch (writeErr) {
+                    // Fallback to app external storage if public Documents is restricted
+                    await Filesystem.writeFile({
+                        path: fileName,
+                        data: base64Data,
+                        directory: 'EXTERNAL',
+                        recursive: true
+                    });
+                    this.showToast(`✅ Saved to App Storage/${fileName}`);
+                }
             } else {
                 const link = document.createElement('a');
                 link.download = fileName;
@@ -171,11 +195,12 @@ class MkrLedger {
             }
         } catch (err) {
             console.error("Save error:", err);
-            this.showToast("❌ Failed to save image");
+            this.showToast("❌ Failed to save: " + (err.message || "Permission denied"));
         } finally {
             btn.innerHTML = originalText;
         }
     }
+
 
     async shareList() {
         if (this.items.length === 0) {
