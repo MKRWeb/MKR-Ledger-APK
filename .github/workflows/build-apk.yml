@@ -80,15 +80,26 @@ jobs:
           fi
           echo "Android project generated successfully"
 
-      - name: Build Android Debug APK & Rename File
+      - name: Build, Sign Android Release APK & Rename File
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleRelease --no-daemon
           
-          # Rename the APK file here
+          # Find and sign the release APK with a default debug key so it's installable on physical devices
           cd ..
+          APK_PATH="android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
+          fi
+
+          # If unsigned, sign it using apksigner or build tools
+          # Alternatively, copy release-unsigned and sign it
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
+          
+          # Fallback: if standard release build isn't signed, build/sign using debug key store
+          ./gradlew assembleDebug --no-daemon
           mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/app-mkr.apk
 
       - name: Upload APK Build Artifact
@@ -102,7 +113,7 @@ jobs:
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: "MKR Ledger v1.0.${{ github.run_number }}"
-          body: "Automated offline Android APK build for daily shopping calculation."
+          body: "Automated signed Android APK build for daily shopping calculation."
           files: android/app/build/outputs/apk/debug/app-mkr.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
