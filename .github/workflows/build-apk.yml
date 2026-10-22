@@ -80,25 +80,30 @@ jobs:
           fi
           echo "Android project generated successfully"
 
-      - name: Build Android Debug APK
-        run: |
+          - name: Build Android Debug APK & Rename File run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
+          
+          # Rename the APK file here
+          cd ..
+          mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/app-mkr.apk
+
 
       - name: Upload APK Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: app-mkr
+          path: android/app/build/outputs/apk/debug/app-mkr.apk
 
       - name: Create GitHub Release & Upload APK
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: "MKR Ledger v1.0.${{ github.run_number }}"
-          body: "Automated offline Android APK build for Vivo Y50."
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+          body: "Automated offline Android APK build for daily shopping calculation."
+          files: android/app/build/outputs/apk/debug/app-mkr.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
