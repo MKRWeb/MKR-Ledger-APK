@@ -1,0 +1,58 @@
+name: Build MKR Ledger APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Java JDK 17 (Required for Android Gradle)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Capacitor & Offline Dependencies
+        run: |
+          npm init -y
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor/filesystem@6 @capacitor/share@6 @capacitor/assets html2canvas
+          cp node_modules/html2canvas/dist/html2canvas.min.js www/html2canvas.min.js
+
+      - name: Generate Android Project & App Icons
+        run: |
+          mkdir -p assets
+          if [ -f "icon-512x512.png" ]; then
+            cp icon-512x512.png assets/icon.png
+          fi
+          npx cap add android
+          npx cap sync android
+          if [ -f "assets/icon.png" ]; then
+            npx capacitor-assets generate --android
+          fi
+
+      - name: Build Android Debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload Ready-to-Install APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MKR-Ledger-Offline-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
