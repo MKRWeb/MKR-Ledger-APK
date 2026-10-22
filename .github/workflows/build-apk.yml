@@ -13,28 +13,42 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Set up Java JDK 17
+      - name: Set up Java JDK 21
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
-      - name: Install Capacitor & Bundle Offline Dependencies
+      - name: Prepare Project & Bundle Offline Plugins
         run: |
-          rm -f package.json package-lock.json
+          rm -rf node_modules android package.json package-lock.json capacitor.config.json capacitor.config.ts
           npm init -y
           npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor/filesystem@6 @capacitor/share@6 html2canvas esbuild
-          
-          # Ensure www folder exists and copy html2canvas locally
+
+          # Automatically create capacitor.config.json so it never goes missing
+          cat << 'EOF' > capacitor.config.json
+          {
+            "appId": "com.mkrweb.mkrledger",
+            "appName": "MKR Ledger",
+            "webDir": "www",
+            "server": {
+              "androidScheme": "https"
+            }
+          }
+          EOF
+
+          # Ensure www directory and index.html exist
           mkdir -p www
+          if [ ! -f "www/index.html" ] && [ -f "index.html" ]; then
+            cp index.html www/
+            [ -f "style.css" ] && cp style.css www/
+            [ -f "app.js" ] && cp app.js www/
+          fi
+
+          # Copy html2canvas locally into www/
           cp node_modules/html2canvas/dist/html2canvas.min.js www/html2canvas.min.js
-          
-          # Bundle Capacitor Core, Filesystem, and Share into www/capacitor.js so they work 100% offline
+
+          # Bundle Capacitor Core, Filesystem, and Share into www/capacitor.js
           cat << 'EOF' > cap-entry.js
           import { Capacitor } from '@capacitor/core';
           import { Filesystem } from '@capacitor/filesystem';
@@ -46,19 +60,22 @@ jobs:
           EOF
           npx esbuild cap-entry.js --bundle --outfile=www/capacitor.js --format=iife
 
-      - name: Generate Android Project & Inject App Icons
+      - name: Generate Android Project & App Icons
         run: |
-          rm -rf android
           npx cap add android
           npx cap sync android
-          
-          # Inject icon-512x512.png directly into all Android launcher icon folders (bypasses 1024px check)
-          if [ -f "icon-512x512.png" ]; then
+
+          # Copy custom icon if uploaded
+          ICON_FILE=""
+          [ -f "icon-512x512.png" ] && ICON_FILE="icon-512x512.png"
+          [ -f "www/icon-512x512.png" ] && ICON_FILE="www/icon-512x512.png"
+
+          if [ -n "$ICON_FILE" ]; then
             for dir in android/app/src/main/res/mipmap-*; do
               if [ -d "$dir" ]; then
-                cp icon-512x512.png "$dir/ic_launcher.png"
-                cp icon-512x512.png "$dir/ic_launcher_round.png"
-                cp icon-512x512.png "$dir/ic_launcher_foreground.png"
+                cp "$ICON_FILE" "$dir/ic_launcher.png"
+                cp "$ICON_FILE" "$dir/ic_launcher_round.png"
+                cp "$ICON_FILE" "$dir/ic_launcher_foreground.png"
               fi
             done
           fi
@@ -67,11 +84,10 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload Ready-to-Install APK
         uses: actions/upload-artifact@v4
         with:
           name: MKR-Ledger-Offline-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
-          
