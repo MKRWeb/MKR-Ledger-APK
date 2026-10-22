@@ -62,17 +62,12 @@ jobs:
           npx cap add android
           npx cap sync android
 
-          # Safely inject Android storage permissions and legacy storage flag
+          # Safely inject Android storage permissions using Python
           python3 -c '
           p = "android/app/src/main/AndroidManifest.xml"
           s = open(p).read()
-          perms = ""
-          if "READ_EXTERNAL_STORAGE" not in s:
-              perms += "<uses-permission android:name=\"android.permission.READ_EXTERNAL_STORAGE\" android:maxSdkVersion=\"32\" />\n    "
-          if "WRITE_EXTERNAL_STORAGE" not in s:
-              perms += "<uses-permission android:name=\"android.permission.WRITE_EXTERNAL_STORAGE\" android:maxSdkVersion=\"32\" />\n    "
-          s = s.replace("<application", perms + "<application android:requestLegacyExternalStorage=\"true\"", 1)
-          open(p, "w").write(s)
+          perms = "<uses-permission android:name=\"android.permission.READ_EXTERNAL_STORAGE\" />\n    <uses-permission android:name=\"android.permission.WRITE_EXTERNAL_STORAGE\" />\n    <application android:requestLegacyExternalStorage=\"true\""
+          open(p, "w").write(s.replace("<application", perms, 1))
           '
 
           mkdir -p assets
@@ -85,74 +80,25 @@ jobs:
           fi
           echo "Android project generated successfully"
 
-      - name: Configure Version & Signing for Clean APK Installation
-        run: |
-          # Generate a deterministic RSA key from a fixed seed so all builds share the same signature
-          python3 -c '
-          import hashlib, subprocess
-          # Uses repo name as a deterministic seed so every GitHub Actions run produces the same key
-          seed = hashlib.sha256(b"com.mkrweb.mkrledger.signing.seed.v1").digest()
-          '
-          # Create a keystore if one is not already tracked in the repo
-          if [ ! -f "mkr-release-key.keystore" ]; then
-            keytool -genkeypair -v \
-              -keystore mkr-release-key.keystore \
-              -alias mkrledger \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass mkrledger123 \
-              -keypass mkrledger123 \
-              -dname "CN=MKRWeb, OU=Mobile, O=MKRWeb, L=City, S=State, C=BD"
-          fi
-          cp mkr-release-key.keystore android/app/mkr-release-key.keystore
-
-          # Update versionCode, versionName, and configure release signing with v1 + v2 signatures
-          python3 -c '
-          p = "android/app/build.gradle"
-          s = open(p).read()
-          s = s.replace("versionCode 1", "versionCode ${{ github.run_number }}")
-          s = s.replace("versionName \"1.0\"", "versionName \"1.0.${{ github.run_number }}\"")
-
-          signing_config = """
-              signingConfigs {
-                  release {
-                      storeFile file("mkr-release-key.keystore")
-                      storePassword "mkrledger123"
-                      keyAlias "mkrledger"
-                      keyPassword "mkrledger123"
-                      v1SigningEnabled true
-                      v2SigningEnabled true
-                  }
-              }
-          """
-          s = s.replace("buildTypes {", signing_config + "\n    buildTypes {", 1)
-          s = s.replace("buildTypes {\n        release {", "buildTypes {\n        release {\n            signingConfig signingConfigs.release", 1)
-          open(p, "w").write(s)
-          '
-
-      - name: Build Signed Release APK & Rename File
+      - name: Build Android Debug APK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
-
-          cd ..
-          mv android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/app-mkr.apk
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-mkr
-          path: android/app/build/outputs/apk/release/app-mkr.apk
+          name: app-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Create GitHub Release & Upload APK
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: "MKR Ledger v1.0.${{ github.run_number }}"
-          body: "Automated offline Android APK build for daily shopping calculation."
-          files: android/app/build/outputs/apk/release/app-mkr.apk
+          body: "Automated offline Android APK build for Vivo Y50."
+          files: android/app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
