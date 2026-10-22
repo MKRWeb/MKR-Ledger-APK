@@ -80,7 +80,8 @@ jobs:
           fi
           echo "Android project generated successfully"
 
-          - name: Build Android Debug APK & Rename File run: |
+      - name: Build Android Debug APK & Rename File
+        run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
           cd android
           chmod +x gradlew
@@ -89,7 +90,6 @@ jobs:
           # Rename the APK file here
           cd ..
           mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/app-mkr.apk
-
 
       - name: Upload APK Build Artifact
         uses: actions/upload-artifact@v4
@@ -106,4 +106,3 @@ jobs:
           files: android/app/build/outputs/apk/debug/app-mkr.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
